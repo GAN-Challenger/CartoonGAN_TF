@@ -39,14 +39,32 @@ def smooth(input_dir, output_dir):
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
 
-    # for file_name in os.listdir(input_dir):
-    #     gaussian_blur(file_name)
-
     map(gaussian_blur, os.listdir(input_dir))
+
+
+def resize(input_dir, output_dir, scaled_size=256):
+    def img_resize(file_name):
+        img = cv2.imread(os.path.join(input_dir, file_name))
+        scale_ratio = max(scaled_size / img.shape[0], scaled_size / img.shape[1]) + 0.1
+
+        height = img.shape[0] * scale_ratio
+        width = img.shape[1] * scale_ratio
+
+        scaled = cv2.resize(img, dsize=(width, height), interpolation=cv2.INTER_AREA)
+        cv2.imwrite(os.path.join(output_dir, file_name), scaled)
+        return scaled
+
+    if not os.path.exists(input_dir) or not os.path.isdir(input_dir):
+        return
+    if not os.path.exists(output_dir):
+        os.mkdir(output_dir)
+
+    map(img_resize, os.listdir(input_dir))
 
 
 if __name__ == '__main__':
     smooth('D:/Video frame/cartoon_gan/your_name', 'D:/Video frame/cartoon_gan/your_name_edge')
+    smooth('D:/Video frame/cartoon_gan/your_name', 'D:/Video frame/cartoon_gan/your_name_resize')
 
 
 

@@ -101,6 +101,8 @@ def discriminator(input, is_train=False, reuse=False):
         n = BatchNormLayer(n, act=leaky_relu, is_train=is_train, gamma_init=gamma_init, name='block4/b')
 
         n = Conv2d(n, 1, (3, 3), (1, 1), act=None, padding='SAME', W_init=w_init, name='d_output')
+        n = tf.reshape(tensor=n, shape=[tf.shape(n)[0], -1])
+        n = tf.nn.sigmoid(n, name='d_output')
 
     return n, n.outputs
 
