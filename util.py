@@ -2,6 +2,8 @@
 
 from scipy.misc import imread
 from tensorlayer.prepro import crop, imresize
+import cv2
+import os
 
 
 def get_imgs_fn(file_name, path):
@@ -22,3 +24,31 @@ def downsample_fn(x):
     x /= 255. / 2.
     x -= 1.
     return x
+
+
+def smooth(input_dir, output_dir):
+    def gaussian_blur(file_name):
+        img = cv2.imread(os.path.join(input_dir, file_name))
+        blur = cv2.GaussianBlur(img, (5, 5), 0)
+        cv2.imwrite(os.path.join(output_dir, file_name), blur)
+        return blur
+
+    if not os.path.exists(input_dir) or not os.path.isdir(input_dir):
+        return
+
+    if not os.path.exists(output_dir):
+        os.mkdir(output_dir)
+
+    # for file_name in os.listdir(input_dir):
+    #     gaussian_blur(file_name)
+
+    map(gaussian_blur, os.listdir(input_dir))
+
+
+if __name__ == '__main__':
+    smooth('D:/Video frame/cartoon_gan/your_name', 'D:/Video frame/cartoon_gan/your_name_edge')
+
+
+
+
+
