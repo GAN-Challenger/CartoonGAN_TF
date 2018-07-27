@@ -31,12 +31,12 @@ def generator(input, is_train=False, reuse=False):
         n = BatchNormLayer(n, act=tf.nn.relu, is_train=is_train, gamma_init=gamma_init, name='k7n64s1/b_r')
 
         with tf.variable_scope('down_conv'):
-            n = Conv2d(n, 128, (3, 3), (2, 2), padding='VALID', W_init=w_init, name='k3n128s2/c1')
+            n = Conv2d(n, 128, (3, 3), (2, 2), padding='SAME', W_init=w_init, name='k3n128s2/c1')
             n = Conv2d(n, 128, (3, 3), (1, 1), padding='SAME', W_init=w_init, name='k3n128s1/c2')
             n = BatchNormLayer(n, act=tf.nn.relu, is_train=is_train, gamma_init=gamma_init, name='k3n128/b_r')
 
-            n = Conv2d(n, 256, (3, 3), (2, 2), padding='VALID', W_init=w_init, name='k3n256s2/c1')
-            n = Conv2d(n, 256, (3, 3), (1, 1), padding='SAME', W_init=w_init, name='k3n256s1/c2')
+            n = Conv2d(n, 256, (3, 3), (2, 2), padding='SAME', W_init=w_init, name='k3n256s2/c1')
+            n = Conv2d(n, 256, (3, 3), (1, 1), padding='SAME', W_init=w_init, name='k3n256s1/cc')
             n = BatchNormLayer(n, act=tf.nn.relu, is_train=is_train, gamma_init=gamma_init, name='k3n256/b_r')
 
         with tf.variable_scope('residual_blocks'):
@@ -48,15 +48,15 @@ def generator(input, is_train=False, reuse=False):
                 nn = Conv2d(nn, 256, (3, 3), (1, 1), act=None, padding='SAME', W_init=w_init, b_init=b_init,
                             name='k3n256s1/c2/%s' % i)
                 nn = BatchNormLayer(nn, is_train=is_train, gamma_init=gamma_init, name='k3n256s1/b2/%s' % i)
-                nn = ElementwiseLayer([n, nn], tf.add, 'b_residual_add/%s' % i)
+                nn = ElementwiseLayer([n, nn], tf.add, name='b_residual_add/%s' % i)
                 n = nn
 
         with tf.variable_scope('up_conv'):
-            n = DeConv2d(n, 128, (3, 3), (2, 2), act=None, padding='SAME', W_init=w_init, name='k3n128s0.5/c1')
+            n = DeConv2d(n, n_filter=128, filter_size=(3, 3), out_size=(128, 128), strides=(2, 2), padding='SAME', W_init=w_init, name='k3n128s05/c1')
             n = Conv2d(n, 128, (3, 3), (1, 1), padding='SAME', W_init=w_init, name='k3n128s1/c2')
             n = BatchNormLayer(n, act=tf.nn.relu, is_train=is_train, gamma_init=gamma_init, name='k3n128/b_r')
 
-            n = DeConv2d(n, 64, (3, 3), (2, 2), act=None, padding='SAME', W_init=w_init, name='k3n64s0.5/c1')
+            n = DeConv2d(n, n_filter=64, filter_size=(3, 3), out_size=(256, 256), strides=(2, 2), padding='SAME', W_init=w_init, name='k3n64s05/c1')
             n = Conv2d(n, 64, (3, 3), (1, 1), padding='SAME', W_init=w_init, name='k3n64s1/c2')
             n = BatchNormLayer(n, act=tf.nn.relu, is_train=is_train, gamma_init=gamma_init, name='k3n64/b_r')
 
@@ -80,20 +80,17 @@ def discriminator(input, is_train=False, reuse=False):
     gamma_init = tf.random_normal_initializer(1.0, stddev=0.02)
     leaky_relu = lambda x: tl.act.lrelu(x, 0.2)
 
-    with tf.variable_scope('      ', reuse=reuse):
+    with tf.variable_scope('CartoonGAN_D', reuse=reuse):
         tl.layers.set_name_reuse(reuse)
 
         n = InputLayer(input, name='d_input')
-        n = Conv2d(n, 32, (3, 3), (1, 1), act=None, padding='SAME', W_init=w_init, name='block1/c')
-        n = tf.nn.leaky_relu(n)
+        n = Conv2d(n, 32, (3, 3), (1, 1), act=leaky_relu, padding='SAME', W_init=w_init, name='block1/c')
 
-        n = Conv2d(n, 64, (3, 3), (2, 2), act=None, padding='VALID', W_init=w_init, name='block2/c1')
-        n = tf.nn.leaky_relu(n)
+        n = Conv2d(n, 64, (3, 3), (2, 2), act=leaky_relu, padding='SAME', W_init=w_init, name='block2/c1')
         n = Conv2d(n, 128, (3, 3), (1, 1), act=None, padding='SAME', W_init=w_init, name='block2/c2')
         n = BatchNormLayer(n, act=leaky_relu, is_train=is_train, gamma_init=gamma_init, name='block2/b')
 
-        n = Conv2d(n, 128, (3, 3), (2, 2), act=None, padding='VALID', W_init=w_init, name='block3/c1')
-        n = tf.nn.leaky_relu(n)
+        n = Conv2d(n, 128, (3, 3), (2, 2), act=leaky_relu, padding='SAME', W_init=w_init, name='block3/c1')
         n = Conv2d(n, 256, (3, 3), (1, 1), act=None, padding='SAME', W_init=w_init, name='block3/c2')
         n = BatchNormLayer(n, act=leaky_relu, is_train=is_train, gamma_init=gamma_init, name='block3/b')
 
@@ -101,8 +98,9 @@ def discriminator(input, is_train=False, reuse=False):
         n = BatchNormLayer(n, act=leaky_relu, is_train=is_train, gamma_init=gamma_init, name='block4/b')
 
         n = Conv2d(n, 1, (3, 3), (1, 1), act=None, padding='SAME', W_init=w_init, name='d_output')
-        n = tf.reshape(tensor=n, shape=[tf.shape(n)[0], -1])
-        n = tf.nn.sigmoid(n, name='d_output')
+        n = FlattenLayer(n)
+        n = DenseLayer(n, n_units=1, name='d_output')
+        n.outputs = tf.nn.sigmoid(n.outputs)
 
     return n, n.outputs
 

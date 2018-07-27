@@ -22,9 +22,11 @@ FLAGS = tf.flags.FLAGS
 tf.flags.DEFINE_string('real_img_path', '/data/real', """Directory to save realistic style image""")
 tf.flags.DEFINE_string('cartoon_img_path', '/data/cartoon', """Directory to save cartoon style image""")
 tf.flags.DEFINE_string('edge_img_path', '/data/edge', """Directory to save edge style image""")
+tf.flags.DEFINE_string('vgg_model_path', '/home/liuzhaoyang/workspace/SRGAN_Wasserstein/vgg19.npy', """Path to save the VGG 19 parameters""")
 tf.flags.DEFINE_boolean('edge_promote', True, """Integrate the edge promoting loss or not""")
 tf.flags.DEFINE_float('loss_trade_off', 10.0, """Trade off ratio between adversarial loss and content loss""")
 tf.flags.DEFINE_string('gpu', '0', """GPU device""")
+tf.flags.DEFINE_string('mode', 'train', """Running mode, train | eveluate""")
 
 tf.flags.DEFINE_integer('batch_size', 16,
                         """Number of batches to run.""")
@@ -44,15 +46,16 @@ def read_all_imgs(img_list, path='', n_threads=32):
         b_imgs_list = img_list[idx: idx + n_threads]
         b_imgs = tl.prepro.threading_data(b_imgs_list, fn=get_imgs_fn, path=path)
         imgs.extend(b_imgs)
-        print('read %d from %s' % (len(imgs), path))
-    return imgs
+        logger.info('read %d from %s' % (len(imgs), path))
+    count = FLAGS.batch_size * (len(imgs) // FLAGS.batch_size)
+    return imgs[:count]
 
 
-def main():
+def main(argv):
     # init save directory
-    save_dir_ginit = 'samples/{}_ginit'.format(tl.global_flag['mode'])
-    save_dir_gan = 'samples/{}_gan'.format(tl.global_flag['mode'])
-    log_dir = os.path.join('log', datetime.datetime.now().strftime('%Y%M%D-%H%m%s'))
+    save_dir_ginit = 'samples/{}_ginit'.format(FLAGS.mode)
+    save_dir_gan = 'samples/{}_gan'.format(FLAGS.mode)
+    log_dir = os.path.join('log', datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
     tl.files.exists_or_mkdir(save_dir_ginit)
     tl.files.exists_or_mkdir(save_dir_gan)
     tl.files.exists_or_mkdir(log_dir)
@@ -70,6 +73,8 @@ def main():
     train_cartoon_imgs = read_all_imgs(train_cartoon_img_list, path=FLAGS.cartoon_img_path, n_threads=32)
     train_edge_imgs = read_all_imgs(train_edge_img_list, path=FLAGS.edge_img_path, n_threads=32)
 
+    logger.info('Load train real images size: %s' % len(train_real_imgs))   
+ 
     # define model
     img_real_input = tf.placeholder('float32', shape=[FLAGS.batch_size, 256, 256, 3], name='img_real_input')
     img_cartoon_input = tf.placeholder('float32', shape=[FLAGS.batch_size, 256, 256, 3], name='img_cartoon_input')
@@ -121,7 +126,7 @@ def main():
 
     # optimizer
     g_vars = tl.layers.get_variables_with_name('CartoonGAN_G', True, True)
-    d_vars = tl.layers.get_variables_with_name('CartoonGAN_d', True, True)
+    d_vars = tl.layers.get_variables_with_name('CartoonGAN_D', True, True)
     g_opt_init = tf.train.RMSPropOptimizer(lr_v).minimize(con_loss, var_list=g_vars)
     g_opt = tf.train.RMSPropOptimizer(lr_v).minimize(g_loss, var_list=g_vars)
     d_opt = tf.train.RMSPropOptimizer(lr_v).minimize(d_loss, var_list=d_vars)
@@ -133,20 +138,21 @@ def main():
     loss_writer = tf.summary.FileWriter(logdir=log_dir, graph=sess.graph)
     sess.run(tf.global_variables_initializer())
 
-    if not tl.files.load_and_assign_npz(sess=sess, name=checkpoint_dir + '/g_{}.npz'.format(tl.global_flag['mode']),
+    if not tl.files.load_and_assign_npz(sess=sess, name=checkpoint_dir + '/g_{}.npz'.format(FLAGS.mode),
                                         network=net_g):
         tl.files.load_and_assign_npz(sess=sess,
-                                     name=checkpoint_dir + '/g_{}_init.npz'.format(tl.global_flag['mode']),
+                                     name=checkpoint_dir + '/g_{}_init.npz'.format(FLAGS.mode),
                                      network=net_g)
-    tl.files.load_and_assign_npz(sess=sess, name=checkpoint_dir + '/d_{}.npz'.format(tl.global_flag['mode']),
+    tl.files.load_and_assign_npz(sess=sess, name=checkpoint_dir + '/d_{}.npz'.format(FLAGS.mode),
                                  network=net_d)
 
     # ##============================= Load VGG19 ===============================## #
-    vgg19_npy_path = "vgg19.npy"
+    vgg19_npy_path = FLAGS.vgg_model_path
     if not os.path.isfile(vgg19_npy_path):
         logger.info("Please download vgg19.npz from : https://github.com/machrisaa/tensorflow-vgg")
         exit()
     npz = np.load(vgg19_npy_path, encoding='latin1').item()
+    logger.info('** Success load VGG 19 network parameters **')
 
     params = []
     for val in sorted(npz.items()):
@@ -157,10 +163,10 @@ def main():
     tl.files.assign_params(sess, params, net_vgg)
 
     # save sample images
-    sample_imgs = train_real_imgs[:FLAGS.batch_size]
+    sample_imgs = train_real_imgs[:FLAGS.batch_size].copy()
     ni = int(math.sqrt(FLAGS.batch_size))
     sample_real_imgs = tl.prepro.threading_data(sample_imgs, fn=crop_sub_imgs_fn, is_random=False)
-    logger.info('sample realistic sub-image: %s, %s, %s' % (sample_real_imgs.shape, sample_real_imgs.min(), sample_real_imgs.max()))
+    logger.info('sample realistic sub-image: %s, %s, %s' % (sample_real_imgs.shape[0], sample_real_imgs.min(), sample_real_imgs.max()))
     tl.vis.save_images(sample_real_imgs, [ni, ni], save_dir_ginit + '/train_real.png')
     tl.vis.save_images(sample_real_imgs, [ni, ni], save_dir_gan + '/train_real.png')
 
@@ -184,18 +190,18 @@ def main():
                 epoch, FLAGS.n_epoch_init, n_iter, time.time() - step_time, content_error))
             total_content_loss += content_error
             n_iter += 1
-        logger.info("[*] Epoch: [%2d/%2d] time: %4.4fs, mse: %.8f" % (
+        logger.info("[*] Epoch: [%2d/%2d] time: %4.4fs, content loss: %.8f" % (
             epoch, FLAGS.n_epoch_init, time.time() - epoch_time, total_content_loss / n_iter))
 
         # quick evaluation on train set
-        if (epoch != 0) and (epoch % 10 == 0):
+        if epoch % 2 == 0:
             out = sess.run(net_g_test.outputs,
                            {img_real_input: sample_real_imgs})
             logger.info("[*] save images")
             tl.vis.save_images(out, [ni, ni], save_dir_ginit + '/train_%d.png' % epoch)
 
     # save pre train model
-    tl.files.save_npz(net_g.all_params, name=checkpoint_dir + '/g_{}_init.npz'.format(tl.global_flag['mode']),
+    tl.files.save_npz(net_g.all_params, name=checkpoint_dir + '/g_{}_init.npz'.format(FLAGS.mode),
                       sess=sess)
 
     # ##============================= GAN Training ===============================## #
@@ -213,20 +219,21 @@ def main():
 
         epoch_time = time.time()
         total_d_loss, total_g_loss, n_iter = 0., 0., 0.
-        epoch_real_imgs = shuffle(train_real_imgs)
-        epoch_cartoon_imgs = shuffle(train_cartoon_imgs)
-        epoch_edge_imgs = shuffle(train_edge_imgs)
+
+        shuffle(train_real_imgs)
+        shuffle(train_cartoon_imgs)
+        shuffle(train_edge_imgs)
 
         for idx in range(0, len(train_real_imgs), FLAGS.batch_size):
             step_time = time.time()
             batch_real_imgs = tl.prepro.threading_data(
-                epoch_real_imgs[idx: idx + FLAGS.batch_size],
+                train_real_imgs[idx: idx + FLAGS.batch_size],
                 fn=crop_sub_imgs_fn, is_random=True)
             batch_cartoon_imgs = tl.prepro.threading_data(
-                epoch_cartoon_imgs[idx: idx + FLAGS.batch_size],
+                train_cartoon_imgs[idx: idx + FLAGS.batch_size],
                 fn=crop_sub_imgs_fn, is_random=True)
             batch_edge_imgs = tl.prepro.threading_data(
-                epoch_edge_imgs[idx: idx + FLAGS.batch_size],
+                train_edge_imgs[idx: idx + FLAGS.batch_size],
                 fn=crop_sub_imgs_fn, is_random=True)
 
             # update D
@@ -261,9 +268,9 @@ def main():
 
         # save model
         if (epoch != 0) and (epoch % 10 == 0):
-            tl.files.save_npz(net_g.all_params, name=checkpoint_dir + '/g_{}.npz'.format(tl.global_flag['mode']),
+            tl.files.save_npz(net_g.all_params, name=checkpoint_dir + '/g_{}.npz'.format(FLAGS.mode),
                               sess=sess)
-            tl.files.save_npz(net_d.all_params, name=checkpoint_dir + '/d_{}.npz'.format(tl.global_flag['mode']),
+            tl.files.save_npz(net_d.all_params, name=checkpoint_dir + '/d_{}.npz'.format(FLAGS.mode),
                               sess=sess)
 
 if __name__ == '__main__':

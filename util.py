@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from scipy.misc import imread
-# from tensorlayer.prepro import crop, imresize
+from tensorlayer.prepro import crop, imresize
 import cv2
 import os
 
@@ -11,10 +11,10 @@ def get_imgs_fn(file_name, path):
     return imread(path + file_name, mode='RGB')
 
 
-def crop_sub_imgs_fn(x, is_random=True, wrg=256, hrg=256):
-    x = crop(x, wrg=wrg, hrg=hrg, is_random=is_random)
-    x /= 255. / 2.
-    x -= 1.
+def crop_sub_imgs_fn(x, is_random=True):
+    x = crop(x, wrg=256, hrg=256, is_random=is_random)
+    x = x / (255. / 2.)
+    x = x - 1.
     return x
 
 
