@@ -26,13 +26,13 @@ tf.flags.DEFINE_boolean('edge_promote', True, """Integrate the edge promoting lo
 tf.flags.DEFINE_float('loss_trade_off', 10.0, """Trade off ratio between adversarial loss and content loss""")
 tf.flags.DEFINE_string('gpu', '0', """GPU device""")
 
-tf.flags.DEFINE_integer('batch_size', 128,
+tf.flags.DEFINE_integer('batch_size', 16,
                         """Number of batches to run.""")
-tf.flags.DEFINE_float('lr_init', 0.0001,
+tf.flags.DEFINE_float('lr_init', 1e-4,
                       """Init learning rate""")
 tf.flags.DEFINE_integer('n_epoch_init', 10, """Pre-train iteration epochs""")
-tf.flags.DEFINE_integer('n_epoch', 100, """Iteration epochs""")
-tf.flags.DEFINE_integer('decay_every', 10, """Learning rate decay every %n epoch""")
+tf.flags.DEFINE_integer('n_epoch', 300, """Iteration epochs""")
+tf.flags.DEFINE_integer('decay_every', 100, """Learning rate decay every %n epoch""")
 tf.flags.DEFINE_float('lr_decay', 0.1, """Learning rate decay rate""")
 os.environ['CUDA_VISIBLE_DEVICES'] = FLAGS.gpu
 

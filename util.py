@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from scipy.misc import imread
-from tensorlayer.prepro import crop, imresize
+# from tensorlayer.prepro import crop, imresize
 import cv2
 import os
 
@@ -50,7 +50,8 @@ def smooth(input_dir, output_dir):
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
 
-    map(gaussian_blur, os.listdir(input_dir))
+    for f_name in os.listdir(input_dir):
+        gaussian_blur(f_name)
 
 
 def resize(input_dir, output_dir, scaled_size=256):
@@ -70,14 +71,14 @@ def resize(input_dir, output_dir, scaled_size=256):
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
 
-    for file_name in os.listdir(input_dir):
-        img_resize(file_name)
+    for f_name in os.listdir(input_dir):
+        img_resize(f_name)
 
 
 if __name__ == '__main__':
-    smooth('D:/Video frame/cartoon_gan/your_name_resize', 'D:/Video frame/cartoon_gan/your_name_edge')
+    smooth('D:/Video frame/cartoon_gan/your_name_resize', 'D:/Video frame/cartoon_gan/your_name_resize_edge')
     # resize('D:/Video frame/cartoon_gan/your_name', 'D:/Video frame/cartoon_gan/your_name_resize')
-    resize('D:/Video frame/cartoon_gan/kingsman', 'D:/Video frame/cartoon_gan/kingsman_resize')
+    # resize('D:/Video frame/cartoon_gan/kingsman', 'D:/Video frame/cartoon_gan/kingsman_resize')
 
 
 
