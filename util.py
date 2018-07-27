@@ -26,6 +26,17 @@ def downsample_fn(x):
     return x
 
 
+def resize_fn(x, scaled_size=256):
+    # We obtained the LR images by downsampling the HR images using bicubic kernel with downsampling factor r = 4.
+    scale_ratio = max(scaled_size / x.shape[0], scaled_size / x.shape[1]) + 0.05
+
+    height = int(x.shape[0] * scale_ratio)
+    width = int(x.shape[1] * scale_ratio)
+
+    x = imresize(x, size=[width, height], interp='bicubic')
+    return x
+
+
 def smooth(input_dir, output_dir):
     def gaussian_blur(file_name):
         img = cv2.imread(os.path.join(input_dir, file_name))
@@ -47,8 +58,8 @@ def resize(input_dir, output_dir, scaled_size=256):
         img = cv2.imread(os.path.join(input_dir, file_name))
         scale_ratio = max(scaled_size / img.shape[0], scaled_size / img.shape[1]) + 0.1
 
-        height = img.shape[0] * scale_ratio
-        width = img.shape[1] * scale_ratio
+        height = int(img.shape[0] * scale_ratio)
+        width = int(img.shape[1] * scale_ratio)
 
         scaled = cv2.resize(img, dsize=(width, height), interpolation=cv2.INTER_AREA)
         cv2.imwrite(os.path.join(output_dir, file_name), scaled)
@@ -59,12 +70,14 @@ def resize(input_dir, output_dir, scaled_size=256):
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
 
-    map(img_resize, os.listdir(input_dir))
+    for file_name in os.listdir(input_dir):
+        img_resize(file_name)
 
 
 if __name__ == '__main__':
-    smooth('D:/Video frame/cartoon_gan/your_name', 'D:/Video frame/cartoon_gan/your_name_edge')
-    smooth('D:/Video frame/cartoon_gan/your_name', 'D:/Video frame/cartoon_gan/your_name_resize')
+    smooth('D:/Video frame/cartoon_gan/your_name_resize', 'D:/Video frame/cartoon_gan/your_name_edge')
+    # resize('D:/Video frame/cartoon_gan/your_name', 'D:/Video frame/cartoon_gan/your_name_resize')
+    resize('D:/Video frame/cartoon_gan/kingsman', 'D:/Video frame/cartoon_gan/kingsman_resize')
 
 
 
