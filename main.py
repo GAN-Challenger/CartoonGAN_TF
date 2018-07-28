@@ -31,6 +31,7 @@ tf.flags.DEFINE_string('gpu', '0', """GPU device""")
 tf.flags.DEFINE_string('mode', 'train', """Running mode, train | evaluate """)
 tf.flags.DEFINE_string('gan_loss_type', 'gan',
                        """GAN loss to optimize: 1) origin gan loss; 2) wgan loss; """)
+tf.flags.DEFINE_string('checkpoint_dir', 'checkpoint', """Directory to save pretrain model""")
 
 tf.flags.DEFINE_integer('batch_size', 16,
                         """Number of batches to run.""")
@@ -68,7 +69,7 @@ def main(argv):
     tl.files.exists_or_mkdir(save_dir_gan)
     tl.files.exists_or_mkdir(log_dir)
 
-    checkpoint_dir = 'checkpoint'
+    checkpoint_dir = FLAGS.checkpoint_dir
     tl.files.exists_or_mkdir(checkpoint_dir)
 
     # load data
@@ -143,7 +144,7 @@ def main(argv):
     with tf.variable_scope('learning_rate'):
         lr_v = tf.Variable(FLAGS.lr_init, trainable=False)
 
-    # optimizer
+    # ##============================= Optimizer ===============================## #
     g_vars = tl.layers.get_variables_with_name('CartoonGAN_G', True, True)
     d_vars = tl.layers.get_variables_with_name('CartoonGAN_D', True, True)
     g_opt_init = tf.train.RMSPropOptimizer(lr_v).minimize(con_loss, var_list=g_vars)
@@ -207,9 +208,9 @@ def main(argv):
             )
 
             # update G
-            content_error, _ = sess.run([con_loss, g_opt_init], {img_real_input: batch_real_imgs})
-            logger.info("Epoch [%2d/%2d] %4d time: %4.4fs, content loss: %.8f " % (
-                epoch, FLAGS.n_epoch_init, n_iter, time.time() - step_time, content_error))
+            mse_error, content_error, _ = sess.run([mse_loss, con_loss, g_opt_init], {img_real_input: batch_real_imgs})
+            logger.info("Epoch [%2d/%2d] %4d time: %4.4fs, mse loss: %.8f, content loss: %.8f " % (
+                epoch, FLAGS.n_epoch_init, n_iter, time.time() - step_time, mse_error, content_error))
             total_content_loss += content_error
             n_iter += 1
         logger.info("[*] Epoch: [%2d/%2d] time: %4.4fs, content loss: %.8f" % (
