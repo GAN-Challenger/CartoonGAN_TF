@@ -22,11 +22,15 @@ FLAGS = tf.flags.FLAGS
 tf.flags.DEFINE_string('real_img_path', '/data/real', """Directory to save realistic style image""")
 tf.flags.DEFINE_string('cartoon_img_path', '/data/cartoon', """Directory to save cartoon style image""")
 tf.flags.DEFINE_string('edge_img_path', '/data/edge', """Directory to save edge style image""")
-tf.flags.DEFINE_string('vgg_model_path', '/home/liuzhaoyang/workspace/SRGAN_Wasserstein/vgg19.npy', """Path to save the VGG 19 parameters""")
+tf.flags.DEFINE_string('vgg_model_path', '/home/liuzhaoyang/workspace/SRGAN_Wasserstein/vgg19.npy',
+                       """Path to save the VGG 19 parameters""")
 tf.flags.DEFINE_boolean('edge_promote', True, """Integrate the edge promoting loss or not""")
 tf.flags.DEFINE_float('loss_trade_off', 10.0, """Trade off ratio between adversarial loss and content loss""")
+tf.flags.DEFINE_float('mse_loss_ratio', 0., """Trade off between vgg content loss and reconstruct mse loss""")
 tf.flags.DEFINE_string('gpu', '0', """GPU device""")
-tf.flags.DEFINE_string('mode', 'train', """Running mode, train | eveluate""")
+tf.flags.DEFINE_string('mode', 'train', """Running mode, train | evaluate """)
+tf.flags.DEFINE_string('gan_loss_type', 'gan',
+                       """GAN loss to optimize: 1) origin gan loss; 2) wgan loss; """)
 
 tf.flags.DEFINE_integer('batch_size', 16,
                         """Number of batches to run.""")
@@ -36,6 +40,10 @@ tf.flags.DEFINE_integer('n_epoch_init', 10, """Pre-train iteration epochs""")
 tf.flags.DEFINE_integer('n_epoch', 300, """Iteration epochs""")
 tf.flags.DEFINE_integer('decay_every', 100, """Learning rate decay every %n epoch""")
 tf.flags.DEFINE_float('lr_decay', 0.1, """Learning rate decay rate""")
+
+
+if FLAGS.gan_loss_type not in ('gan', 'wgan', 'wgan_gp'):
+    FLAGS.gan_loss_type = 'gan'
 os.environ['CUDA_VISIBLE_DEVICES'] = FLAGS.gpu
 
 
@@ -53,8 +61,8 @@ def read_all_imgs(img_list, path='', n_threads=32):
 
 def main(argv):
     # init save directory
-    save_dir_ginit = 'samples/{}_ginit'.format(FLAGS.mode)
-    save_dir_gan = 'samples/{}_gan'.format(FLAGS.mode)
+    save_dir_ginit = 'samples/{}/{}_ginit'.format(datetime.datetime.now().strftime('%Y%m%d'), FLAGS.mode)
+    save_dir_gan = 'samples/{}/{}_gan'.format(datetime.datetime.now().strftime('%Y%m%d'), FLAGS.mode)
     log_dir = os.path.join('log', datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
     tl.files.exists_or_mkdir(save_dir_ginit)
     tl.files.exists_or_mkdir(save_dir_gan)
@@ -81,9 +89,9 @@ def main(argv):
     img_edge_input = tf.placeholder('float32', shape=[FLAGS.batch_size, 256, 256, 3], name='img_edge_input')
 
     net_g = generator(img_real_input, is_train=True, reuse=False)
-    net_d, img_true = discriminator(img_cartoon_input, is_train=True, reuse=False)
-    _, img_gen_fake = discriminator(net_g.outputs, is_train=True, reuse=True)
-    _, img_edge_fake = discriminator(img_edge_input, is_train=True, reuse=True)
+    net_d, img_true_logits, img_true = discriminator(img_cartoon_input, is_train=True, reuse=False)
+    _, img_gen_fake_logits, img_gen_fake = discriminator(net_g.outputs, is_train=True, reuse=True)
+    _, img_edge_fake_logits, img_edge_fake = discriminator(img_edge_input, is_train=True, reuse=True)
 
     net_g.print_params(details=False)
     net_d.print_params(details=False)
@@ -98,27 +106,38 @@ def main(argv):
     # test inference
     net_g_test = generator(img_real_input, is_train=False, reuse=True)
 
-    # loss definition
+    # ##============================= Loss Definition ===============================## #
     with tf.name_scope('loss'):
         edge_promote = int(FLAGS.edge_promote)
         w = FLAGS.loss_trade_off
 
-        adv_loss = tf.reduce_mean(tf.log(img_true)) + tf.reduce_mean(
-            tf.log(1. - img_gen_fake)) + edge_promote * tf.reduce_mean(tf.log(1. - img_edge_fake))
-        tf.summary.scalar('adv_loss', adv_loss)
+        # mse loss
+        mse_loss = tf.reduce_mean(tf.square(img_real_input - net_g.outputs))
+        tf.summary.scalar('mse_loss', mse_loss)
 
         # L1 content loss
-        con_loss = tf.reduce_mean(tf.abs(vgg_real - vgg_gen))
+        con_loss = tf.reduce_mean(tf.abs(vgg_real - vgg_gen)) + FLAGS.mse_loss_ratio * mse_loss
         tf.summary.scalar('con_loss', con_loss)
 
-        d_loss = -1.0 * (adv_loss + w * con_loss)
-        tf.summary.scalar('d_loss', d_loss)
+        if FLAGS.gan_loss_type == 'wgan':
+            d_loss = (tf.reduce_mean(img_gen_fake_logits) - tf.reduce_mean(img_true_logits)) + edge_promote * (
+                tf.reduce_mean(img_edge_fake_logits) - tf.reduce_mean(img_true_logits)
+            )
+            tf.summary.scalar('d_loss', d_loss)
 
-        g_adv_loss = tf.reduce_mean(-1.0 * tf.log(img_gen_fake))
-        tf.summary.scalar('g_adv_loss', g_adv_loss)
+            g_adv_loss = tf.reduce_mean(img_gen_fake_logits)
+            tf.summary.scalar('g_adv_loss', g_adv_loss)
+        else:
+            d_loss = -1.0 * (tf.reduce_mean(tf.log(img_true)) + tf.reduce_mean(
+                tf.log(1. - img_gen_fake)) + edge_promote * tf.reduce_mean(tf.log(1. - img_edge_fake)))
+            tf.summary.scalar('d_loss', d_loss)
+
+            g_adv_loss = tf.reduce_mean(-1.0 * tf.log(img_gen_fake))
+            tf.summary.scalar('g_adv_loss', g_adv_loss)
 
         g_loss = g_adv_loss + w * con_loss
         tf.summary.scalar('g_loss', g_loss)
+
     merged = tf.summary.merge_all()
 
     with tf.variable_scope('learning_rate'):
@@ -130,6 +149,9 @@ def main(argv):
     g_opt_init = tf.train.RMSPropOptimizer(lr_v).minimize(con_loss, var_list=g_vars)
     g_opt = tf.train.RMSPropOptimizer(lr_v).minimize(g_loss, var_list=g_vars)
     d_opt = tf.train.RMSPropOptimizer(lr_v).minimize(d_loss, var_list=d_vars)
+
+    # clip op for discriminator
+    clip_d = [p.assign(tf.clip_by_value(p, -0.01, 0.01)) for p in d_vars]
 
     # ##============================= Restore Model ===============================## #
     run_config = tf.ConfigProto()
@@ -237,8 +259,8 @@ def main(argv):
                 fn=crop_sub_imgs_fn, is_random=True)
 
             # update D
-            err_d, summary, _ = sess.run(
-                [d_loss, merged, d_opt], feed_dict={
+            err_d, summary, _, _ = sess.run(
+                [d_loss, merged, d_opt, clip_d], feed_dict={
                     img_real_input: batch_real_imgs, img_cartoon_input: batch_cartoon_imgs,
                     img_edge_input: batch_edge_imgs
                 }

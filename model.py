@@ -100,9 +100,10 @@ def discriminator(input, is_train=False, reuse=False):
         n = Conv2d(n, 1, (3, 3), (1, 1), act=None, padding='SAME', W_init=w_init, name='d_output')
         n = FlattenLayer(n)
         n = DenseLayer(n, n_units=1, name='d_output')
+        logits = n.outputs
         n.outputs = tf.nn.sigmoid(n.outputs)
 
-    return n, n.outputs
+    return n, logits, n.outputs
 
 
 def vgg19_simple_api(rgb, reuse):
