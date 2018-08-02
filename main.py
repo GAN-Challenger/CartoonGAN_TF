@@ -218,18 +218,19 @@ def main(argv):
             # update G
             mse_error, content_error, _ = sess.run([mse_loss, con_loss, g_opt_init], {img_real_input: batch_real_imgs})
             logger.info("Epoch [%2d/%2d] %4d time: %4.4fs, mse loss: %.8f, content loss: %.8f " % (
-                epoch, FLAGS.n_epoch_init, n_iter, time.time() - step_time, mse_error, content_error))
+                epoch + 1, FLAGS.n_epoch_init, n_iter, time.time() - step_time, mse_error, content_error))
             total_content_loss += content_error
             n_iter += 1
+
         logger.info("[*] Epoch: [%2d/%2d] time: %4.4fs, content loss: %.8f" % (
-            epoch, FLAGS.n_epoch_init, time.time() - epoch_time, total_content_loss / n_iter))
+            epoch + 1, FLAGS.n_epoch_init, time.time() - epoch_time, total_content_loss / n_iter))
 
         # quick evaluation on train set
         if epoch % 2 == 0:
             out = sess.run(net_g_test.outputs,
                            {img_real_input: sample_real_imgs})
             logger.info("[*] save images")
-            tl.vis.save_images(out, [ni, ni], save_dir_ginit + '/train_%d.png' % epoch)
+            tl.vis.save_images(out, [ni, ni], save_dir_ginit + '/train_%d.png' % (epoch + 1))
 
     # save pre train model
     tl.files.save_npz(net_g.all_params, name=checkpoint_dir + '/g_{}_init.npz'.format(FLAGS.mode),
@@ -280,29 +281,31 @@ def main(argv):
                                                     {img_real_input: batch_real_imgs})
 
             logger.info("Epoch [%2d/%2d] %4d time: %4.4fs, d_loss: %.8f g_loss: %.8f (g_adv_loss: %.6f con_loss: %.6f)"
-                        % (epoch, FLAGS.n_epoch, n_iter, time.time() - step_time, err_d, err_g, err_g_adv, err_con))
+                        % (epoch + 1, FLAGS.n_epoch, n_iter, time.time() - step_time, err_d, err_g, err_g_adv, err_con))
             total_d_loss += err_d
             total_g_loss += err_g
             n_iter += 1
             global_step += 1
 
         log = "[*] Epoch: [%2d/%2d] time: %4.4fs, d_loss: %.8f g_loss: %.8f" % (
-            epoch, FLAGS.n_epoch, time.time() - epoch_time, total_d_loss / n_iter, total_g_loss / n_iter)
+            epoch + 1, FLAGS.n_epoch, time.time() - epoch_time, total_d_loss / n_iter, total_g_loss / n_iter)
         logger.info(log)
 
         # quick evaluation on train set
-        if (epoch != 0) and (epoch % 10 == 0):
+        if (epoch == 0) or ((epoch + 1) % 10 == 0):
             out = sess.run(net_g_test.outputs,
                            {img_real_input: sample_real_imgs})
             logger.info("[*] save images")
-            tl.vis.save_images(out, [ni, ni], save_dir_gan + '/train_%d.png' % epoch)
+            tl.vis.save_images(out, [ni, ni], save_dir_gan + '/train_%d.png' % (epoch + 1))
 
         # save model
-        if (epoch != 0) and (epoch % 10 == 0):
+        if (epoch != 0) and ((epoch + 1) % 10 == 0):
             tl.files.save_npz(net_g.all_params, name=checkpoint_dir + '/g_{}.npz'.format(FLAGS.mode),
                               sess=sess)
             tl.files.save_npz(net_d.all_params, name=checkpoint_dir + '/d_{}.npz'.format(FLAGS.mode),
                               sess=sess)
+    sess.close()
+
 
 if __name__ == '__main__':
     tf.app.run()
