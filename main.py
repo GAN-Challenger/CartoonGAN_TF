@@ -12,6 +12,7 @@ import numpy as np
 import math
 import time
 from random import shuffle
+import json
 
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
@@ -24,7 +25,7 @@ tf.flags.DEFINE_string('cartoon_img_path', '/data/cartoon', """Directory to save
 tf.flags.DEFINE_string('edge_img_path', '/data/edge', """Directory to save edge style image""")
 tf.flags.DEFINE_string('vgg_model_path', '/home/liuzhaoyang/workspace/SRGAN_Wasserstein/vgg19.npy',
                        """Path to save the VGG 19 parameters""")
-tf.flags.DEFINE_boolean('edge_promote', True, """Integrate the edge promoting loss or not""")
+tf.flags.DEFINE_integer('edge_promote', 1, """Integrate the edge promoting loss or not""")
 tf.flags.DEFINE_float('loss_trade_off', 10.0, """Trade off ratio between adversarial loss and content loss""")
 tf.flags.DEFINE_float('mse_loss_ratio', 0., """Trade off between vgg content loss and reconstruct mse loss""")
 tf.flags.DEFINE_string('gpu', '0', """GPU device""")
@@ -62,12 +63,19 @@ def read_all_imgs(img_list, path='', n_threads=32):
 
 def main(argv):
     # init save directory
-    save_dir_ginit = 'samples/{}/{}_ginit'.format(datetime.datetime.now().strftime('%Y%m%d'), FLAGS.mode)
-    save_dir_gan = 'samples/{}/{}_gan'.format(datetime.datetime.now().strftime('%Y%m%d'), FLAGS.mode)
-    log_dir = os.path.join('log', datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
+    task_dir = os.path.join('results', datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
+    save_dir_ginit = '{}/{}_ginit'.format(task_dir, FLAGS.mode)
+    save_dir_gan = '{}/{}_gan'.format(task_dir, FLAGS.mode)
+    log_dir = '{}/log'.format(task_dir)
     tl.files.exists_or_mkdir(save_dir_ginit)
     tl.files.exists_or_mkdir(save_dir_gan)
     tl.files.exists_or_mkdir(log_dir)
+
+    with open(os.path.join(task_dir, 'run.config'), 'w') as f:
+        f.write('gan_loss_type: {}\n'.format(FLAGS.gan_loss_type))
+        f.write('edge_promote: {}\n'.format(FLAGS.edge_promote))
+        f.write('loss_trade_off: {}\n'.format(FLAGS.loss_trade_off))
+        f.write('mse_loss_ratio: {}\n'.format(FLAGS.mse_loss_ratio))
 
     checkpoint_dir = FLAGS.checkpoint_dir
     tl.files.exists_or_mkdir(checkpoint_dir)
@@ -109,7 +117,7 @@ def main(argv):
 
     # ##============================= Loss Definition ===============================## #
     with tf.name_scope('loss'):
-        edge_promote = int(FLAGS.edge_promote)
+        edge_promote = FLAGS.edge_promote
         w = FLAGS.loss_trade_off
 
         # mse loss
@@ -126,7 +134,7 @@ def main(argv):
             )
             tf.summary.scalar('d_loss', d_loss)
 
-            g_adv_loss = tf.reduce_mean(img_gen_fake_logits)
+            g_adv_loss = -1 * tf.reduce_mean(img_gen_fake_logits)
             tf.summary.scalar('g_adv_loss', g_adv_loss)
         else:
             d_loss = -1.0 * (tf.reduce_mean(tf.log(img_true)) + tf.reduce_mean(

@@ -6,6 +6,12 @@ import tensorlayer as tl
 from tensorlayer.layers import InputLayer, Conv2d, BatchNormLayer, ElementwiseLayer, DeConv2d
 from tensorlayer.layers import MaxPool2d, FlattenLayer, DenseLayer
 import time
+import logging
+
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
+                    datefmt='%a, %d %b %Y %H:%M:%S')
+logger = logging.getLogger(__name__)
 
 
 def generator(input, is_train=False, reuse=False):
@@ -60,7 +66,7 @@ def generator(input, is_train=False, reuse=False):
             n = Conv2d(n, 64, (3, 3), (1, 1), padding='SAME', W_init=w_init, name='k3n64s1/c2')
             n = BatchNormLayer(n, act=tf.nn.relu, is_train=is_train, gamma_init=gamma_init, name='k3n64/b_r')
 
-        n = Conv2d(n, 3, (7, 7), (1, 1), act=None, padding='SAME', W_init=w_init, name='g_output')
+        n = Conv2d(n, 3, (7, 7), (1, 1), act=tf.nn.tanh, padding='SAME', W_init=w_init, name='g_output')
 
     return n
 
@@ -120,7 +126,7 @@ def vgg19_simple_api(rgb, reuse):
     VGG_MEAN = [103.939, 116.779, 123.68]
     with tf.variable_scope("VGG19", reuse=reuse) as vs:
         start_time = time.time()
-        print("build model started")
+        logger.info("build vgg model started")
         rgb_scaled = rgb * 255.0
         # Convert RGB to BGR
         if tf.__version__ <= '0.11':
@@ -201,6 +207,6 @@ def vgg19_simple_api(rgb, reuse):
         network = DenseLayer(network, n_units=4096, act=tf.nn.relu, name='fc7')
         # discriminator, swap the sigmoid activation function with the linear activation
         network = DenseLayer(network, n_units=1000, act=tf.identity, name='fc8')
-        print("build model finished: %fs" % (time.time() - start_time))
+        logger.info("build vgg model finished: %fs" % (time.time() - start_time))
         return network, conv4_4
 

@@ -4,4 +4,5 @@ run.sh
 log/
 *.log
 samples/
-checkpoint/
+checkpoint*/
+results/
